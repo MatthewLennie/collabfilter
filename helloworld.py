@@ -3,7 +3,6 @@ import pandas as pd
 import torch
 import numpy as np
 header = ['user','item','rating','timestamp']
-
 df = pd.read_csv('./ml-100k/u.data',delimiter='\t',header=None,names = header)
 most_common_movies = df.item.value_counts()[:20].index.tolist()
 
@@ -17,7 +16,7 @@ embedding_user = torch.nn.Embedding(df['user'].unique().shape[0]+1, 30)
 print(df.count())
 weighted_loss = 5
 lr = 0.005
-for epoch in range(10):
+for epoch in range(1):
     lr = 0.9*lr
     for row in shortdf.iterrows():
         movie_total = embedding_movie(torch.tensor(row[1]['relative_index']))+bias_movie[row[1]['relative_index']]
