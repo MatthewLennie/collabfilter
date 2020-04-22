@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import train_test_split
 
 class collabmodel(torch.nn.Module):
     def __init__(self,movie_size,user_size,embedding_size):
@@ -32,20 +33,32 @@ shortdf = df[df['item'].isin(most_common_movies)]
 relative_dict = {movie:i for i,movie in enumerate(most_common_movies)}
 shortdf['relative_index']= [relative_dict[movie] for movie in shortdf['item'].values]
 # 
-users = torch.tensor(shortdf['user'].values)
-movies = torch.tensor(shortdf['relative_index'].values)
-ratings = torch.tensor(shortdf['rating'].astype('float').values)
+X_train, X_test, y_train, y_test = train_test_split(shortdf[['user','relative_index']].values,shortdf['rating'].astype('float').values)
+
+
+users_train = torch.tensor(X_train[:,0])
+movies_train = torch.tensor(X_train[:,1])
+ratings_train = torch.tensor(y_train)
+
+users_test = torch.tensor(X_test[:,0])
+movies_test = torch.tensor(X_test[:,1])
+ratings_test = torch.tensor(y_test)
+
 loss = torch.nn.MSELoss()
 # calculated_loss = loss(squashed_predict,torch.tensor(row[1]['rating'].astype('float')))
 # print(calculated_loss)
-model = collabmodel(len(most_common_movies),len(df['user'].unique())+1,30)
+model = collabmodel(len(most_common_movies),len(df['user'].unique())+1,3)
 model.to(device)
 optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
-
+scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, 0.99999, last_epoch=-1)
 for i in range(600000):
-    calculated_loss = loss(model.forward(users.to(device),movies.to(device)),ratings.to(device))
+    calculated_loss = loss(model.forward(users_train.to(device),movies_train.to(device)),ratings_train.to(device))
     calculated_loss.backward()
-    print(calculated_loss)
     optimizer.step()
     optimizer.zero_grad()
-
+    
+    if i %100 ==0:
+        print("Training Error: {}".format(calculated_loss))
+        print("Validation Error: {}".format(loss(model.forward(users_test.to(device),movies_test.to(device)),ratings_test.to(device))))
+        print("lr: {}".format(optimizer))
+    scheduler.step()
