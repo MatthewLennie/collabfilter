@@ -29,9 +29,8 @@ class collabmodel(torch.nn.Module):
 
 
 class learner():
-    def __init__(self, model, optimizer, loss, users_train, users_test, movies_train, movies_test, ratings_train, ratings_test):
+    def __init__(self, model, loss, users_train, users_test, movies_train, movies_test, ratings_train, ratings_test):
         self.model = model
-        self.optimizer = optimizer
         self.loss = loss
         self.users_train = users_train
         self.users_test = users_test
@@ -41,31 +40,43 @@ class learner():
         self.ratings_test = ratings_test
         self.current_epoch = None
         self.writer = SummaryWriter('runs/{}'.format(random.randint(0, 1e9)))
+        self.optimizer = torch.optim.SGD(
+            self.model.parameters(), lr=0.1, momentum=0.9)
 
-    def learn(self, epochs, lr=None):
+    def learn(self, lr=None):
         prediction = model.forward(
             self.users_train.to(device), self.movies_train.to(device))
         calculated_loss = loss(prediction, self.ratings_train.to(device))
         calculated_loss.backward()
         if self.current_epoch % 100 == 0:
             self.validate()
-            self.writer.add_scalar('Training loss', calculated_loss, i)
-        optimizer.step()
-        optimizer.zero_grad()
+            self.writer.add_scalar(
+                'Training loss', calculated_loss, self.current_epoch)
+        self.optimizer.step()
+        self.optimizer.zero_grad()
         return calculated_loss
 
     def validate(self):
         Validation = loss(model(self.users_test.to(device),
                                 self.movies_test.to(device)), self.ratings_test.to(device))
-        self.writer.add_scalar('Validation loss', Validation, self.current_epoch)
+        self.writer.add_scalar(
+            'Validation loss', Validation, self.current_epoch)
         self.writer.add_histogram("Movie Bias", self.model.bias_movie)
-        self.writer.add_histogram("Movie Bias Grad", self.model.bias_movie.grad)
+        self.writer.add_histogram(
+            "Movie Bias Grad", self.model.bias_movie.grad)
         self.writer.add_histogram("User Bias", self.model.bias_user)
         self.writer.add_histogram("User Bias Grad", self.model.bias_user.grad)
         self.writer.add_scalar("lr", self.optimizer.param_groups[0]['lr'])
         # print("lr: {}".format(optimizer))    return Validation
 
+    def loop(self, epochs):
+        for self.current_epoch in range(epochs):
+            self.learn()
 
+        return True
+
+
+# the nasty glue code section
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # open up the data and grab the top X movies.
@@ -80,7 +91,7 @@ shortdf['relative_index'] = [relative_dict[movie]
 #
 X_train, X_test, y_train, y_test = train_test_split(
     shortdf[['user', 'relative_index']].values, shortdf['rating'].astype('float').values)
-
+# TODO: use pytorch dataloaders, this is messy
 users_train = torch.tensor(X_train[:, 0])
 movies_train = torch.tensor(X_train[:, 1])
 ratings_train = torch.tensor(y_train).float()
@@ -90,32 +101,11 @@ movies_test = torch.tensor(X_test[:, 1])
 ratings_test = torch.tensor(y_test).float()
 
 loss = torch.nn.MSELoss()
-# calculated_loss = loss(squashed_predict,torch.tensor(row[1]['rating'].astype('float')))
-# print(calculated_loss)
+
 model = collabmodel(len(most_common_movies), len(df['user'].unique())+1, 30)
 
 model.to(device)
-optimizer = torch.optim.SGD(model.parameters(), lr=0.1, momentum=0.9)
-# scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, 0.999999999, last_epoch=-1)
+collab_learn = learner(model, loss, users_train, users_test,
+                       movies_train, movies_test, ratings_train, ratings_test)
 
-for i in range(600000):
-    prediction = model.forward(users_train.to(device), movies_train.to(device))
-    calculated_loss = loss(prediction, ratings_train.to(device))
-    calculated_loss.backward()
-
-    if i % 100 == 0:
-        Validation = loss(model(users_test.to(device),
-                                movies_test.to(device)), ratings_test.to(device))
-        writer.add_scalar('Training loss', calculated_loss, i)
-        writer.add_scalar('Validation loss', Validation, i)
-        writer.add_histogram("Movie Bias", model.bias_movie)
-        writer.add_histogram("Movie Bias Grad", model.bias_movie.grad)
-        writer.add_histogram("User Bias", model.bias_user)
-        writer.add_histogram("User Bias Grad", model.bias_user.grad)
-        writer.add_scalar("lr", optimizer.param_groups[0]['lr'])
-        print("Training Error: {}".format(calculated_loss))
-        # print("lr: {}".format(optimizer))
-
-    optimizer.step()
-    optimizer.zero_grad()
-    # scheduler.step()
+collab_learn.loop(40000)
