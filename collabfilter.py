@@ -44,9 +44,9 @@ class learner():
             self.model.parameters(), lr=0.1, momentum=0.9)
 
     def learn(self, lr=None):
-        prediction = model.forward(
+        prediction = self.model.forward(
             self.users_train.to(device), self.movies_train.to(device))
-        calculated_loss = loss(prediction, self.ratings_train.to(device))
+        calculated_loss = self.loss(prediction, self.ratings_train.to(device))
         calculated_loss.backward()
         if self.current_epoch % 100 == 0:
             self.validate()
@@ -71,10 +71,25 @@ class learner():
 
     def loop(self, epochs):
         for self.current_epoch in range(epochs):
-            self.learn()
+            loss = self.learn()
+        return loss
 
-        return True
-
+    def lr_find(self):
+        results_array = []
+        torch.save(self.model.state_dict(),"./temp.pt")
+        for i in range(-6,6):
+            # self.current_epoch = 1
+            # baseline = self.learn()
+            self.model.load_state_dict(torch.load("./temp.pt"))
+            self.optimizer = torch.optim.SGD(
+                self.model.parameters(), lr=0.1, momentum=0.9)
+            torch.save(self.model.state_dict(),"./temp2.pt")
+            b = torch.load("./temp2.pt")
+            a = torch.load("./temp.pt")
+            results_array.append(self.loop(2).cpu())
+            # print("was {}, is {}".format(baseline,improved))
+            print("hello")
+        return results_array
 
 # the nasty glue code section
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -108,4 +123,6 @@ model.to(device)
 collab_learn = learner(model, loss, users_train, users_test,
                        movies_train, movies_test, ratings_train, ratings_test)
 
-collab_learn.loop(40000)
+collab_learn.lr_find()
+# collab_learn.loop(400)
+
