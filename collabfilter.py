@@ -41,7 +41,7 @@ class learner():
         self.current_epoch = None
         self.writer = SummaryWriter('runs/{}'.format(random.randint(0, 1e9)))
         self.optimizer = torch.optim.SGD(
-            self.model.parameters(), lr=0.1, momentum=0.9)
+            self.model.parameters(), lr=0.05, momentum=0.9)
 
     def learn(self, lr=None):
         prediction = self.model.forward(
@@ -105,7 +105,9 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # open up the data and grab the top X movies.
 header = ['user', 'item', 'rating', 'timestamp']
 df = pd.read_csv('./ml-100k/u.data', delimiter='\t', header=None, names=header)
-most_common_movies = df.item.value_counts()[:20].index.tolist()
+movies = pd.read_csv('./ml-100k/u.item',delimiter='\|',header = None)
+movies.rename(columns={0:'item'}, inplace=True)
+most_common_movies = df.item.value_counts()[:10].index.tolist()
 # create a smaller df with the reduced dataset, just assume all users are present
 shortdf = df[df['item'].isin(most_common_movies)]
 relative_dict = {movie: i for i, movie in enumerate(most_common_movies)}
@@ -131,8 +133,8 @@ model.to(device)
 collab_learn = learner(model, loss, users_train, users_test,
                        movies_train, movies_test, ratings_train, ratings_test)
 
-results_array = collab_learn.lr_find()
-# collab_learn.loop(400)
-collab_learn.plot_lr()
+# results_array = collab_learn.lr_find()
+collab_learn.loop(40000)
+# collab_learn.plot_lr()
 
-print("Asdf")
+
