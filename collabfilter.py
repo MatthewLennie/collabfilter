@@ -76,20 +76,28 @@ class learner():
 
     def lr_find(self):
         results_array = []
-        torch.save(self.model.state_dict(),"./temp.pt")
-        for i in range(-6,6):
-            # self.current_epoch = 1
-            # baseline = self.learn()
+        lr_array = []
+        torch.save(self.model.state_dict(), "./temp.pt")
+        for i in range(-6, 6):
             self.model.load_state_dict(torch.load("./temp.pt"))
             self.optimizer = torch.optim.SGD(
-                self.model.parameters(), lr=0.1, momentum=0.9)
-            torch.save(self.model.state_dict(),"./temp2.pt")
-            b = torch.load("./temp2.pt")
-            a = torch.load("./temp.pt")
-            results_array.append(self.loop(2).cpu())
-            # print("was {}, is {}".format(baseline,improved))
-            print("hello")
+                self.model.parameters(), lr=10**i, momentum=0.9)
+            results_array.append(self.loop(100).cpu())
+            lr_array.append(i)
+
+            print("Result {} @ lr = 10**{}".format(results_array[-1].data, i))
+        self.model.load_state_dict(torch.load("./temp.pt"))
+        self.optimizer = torch.optim.SGD(
+            self.model.parameters(), lr=10**i, momentum=0.9)
+        return lr_array,results_array
+
+    def plot_lr(self):
+        import matplotlib.pyplot as plt
+        lr_array ,results_array = self.lr_find()
+        plt.plot(lr_array,results_array)
+        plt.savefig("lr_finder.png")
         return results_array
+
 
 # the nasty glue code section
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -123,6 +131,8 @@ model.to(device)
 collab_learn = learner(model, loss, users_train, users_test,
                        movies_train, movies_test, ratings_train, ratings_test)
 
-collab_learn.lr_find()
+results_array = collab_learn.lr_find()
 # collab_learn.loop(400)
+collab_learn.plot_lr()
 
+print("Asdf")
