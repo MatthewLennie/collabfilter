@@ -107,7 +107,9 @@ header = ['user', 'item', 'rating', 'timestamp']
 df = pd.read_csv('./ml-100k/u.data', delimiter='\t', header=None, names=header)
 movies = pd.read_csv('./ml-100k/u.item',delimiter='\|',header = None)
 movies.rename(columns={0:'item'}, inplace=True)
-most_common_movies = df.item.value_counts()[:10].index.tolist()
+movies[1].astype('str')
+
+most_common_movies = df.item.value_counts()[:100].index.tolist()
 # create a smaller df with the reduced dataset, just assume all users are present
 shortdf = df[df['item'].isin(most_common_movies)]
 relative_dict = {movie: i for i, movie in enumerate(most_common_movies)}
@@ -134,7 +136,13 @@ collab_learn = learner(model, loss, users_train, users_test,
                        movies_train, movies_test, ratings_train, ratings_test)
 
 # results_array = collab_learn.lr_find()
-collab_learn.loop(40000)
+collab_learn.loop(4000)
 # collab_learn.plot_lr()
 
+movies.set_index('item')
+for value, key in enumerate(relative_dict):
+    movie_name = movies.loc[key,1]
+    
+    print("movie rank: {} has score {}".format(movie_name,collab_learn.model.bias_movie.squeeze()[value]))
 
+dda = 
