@@ -68,6 +68,10 @@ class learner():
         self.writer.add_histogram("User Bias Grad", self.model.bias_user.grad)
         self.writer.add_scalar("lr", self.optimizer.param_groups[0]['lr'])
         # print("lr: {}".format(optimizer))    return Validation
+        errors = model(self.users_test.to(device),
+                                self.movies_test.to(device)) - self.ratings_test.to(device)
+        self.writer.add_histogram("validation errors", errors)
+        return errors, self.movies_test
 
     def loop(self, epochs):
         for self.current_epoch in range(epochs):
@@ -89,12 +93,12 @@ class learner():
         self.model.load_state_dict(torch.load("./temp.pt"))
         self.optimizer = torch.optim.SGD(
             self.model.parameters(), lr=10**i, momentum=0.9)
-        return lr_array,results_array
+        return lr_array, results_array
 
     def plot_lr(self):
         import matplotlib.pyplot as plt
-        lr_array ,results_array = self.lr_find()
-        plt.plot(lr_array,results_array)
+        lr_array, results_array = self.lr_find()
+        plt.plot(lr_array, results_array)
         plt.savefig("lr_finder.png")
         return results_array
 
@@ -105,8 +109,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # open up the data and grab the top X movies.
 header = ['user', 'item', 'rating', 'timestamp']
 df = pd.read_csv('./ml-100k/u.data', delimiter='\t', header=None, names=header)
-movies = pd.read_csv('./ml-100k/u.item',delimiter='\|',header = None)
-movies.rename(columns={0:'item'}, inplace=True)
+movies = pd.read_csv('./ml-100k/u.item', delimiter='\|', header=None)
+movies.rename(columns={0: 'item'}, inplace=True)
 movies[1].astype('str')
 
 most_common_movies = df.item.value_counts()[:100].index.tolist()
@@ -135,14 +139,22 @@ model.to(device)
 collab_learn = learner(model, loss, users_train, users_test,
                        movies_train, movies_test, ratings_train, ratings_test)
 
-# results_array = collab_learn.lr_find()
 collab_learn.loop(4000)
-# collab_learn.plot_lr()
 
-movies.set_index('item')
+movies = movies.set_index('item')
 for value, key in enumerate(relative_dict):
-    movie_name = movies.loc[key,1]
-    
-    print("movie rank: {} has score {}".format(movie_name,collab_learn.model.bias_movie.squeeze()[value]))
+    movie_name = movies.loc[key, 1]
 
-dda = 
+    print("movie rank: {} has score {}".format(movie_name,
+                                               collab_learn.model.bias_movie.squeeze()[value]))
+
+losses, labels = collab_learn.validate()
+flipped_relative = dict(zip(relative_dict.values(), relative_dict.keys()))
+current_movies = [movies.loc[flipped_relative[l.detach().item()],1] for l in labels]
+losses_df = pd.DataFrame([losses.to('cpu').detach().numpy(),current_movies]).T
+losses_df['abs_loss'] = abs(losses_df[0])
+for i in range(20):
+    collab_learn.writer.add_text('worst underpredictions','{}'.format(losses_df.sort_values(0).iloc[i]))
+    collab_learn.writer.add_text('worst overpredictions','{}'.format(losses_df.sort_values(0).iloc[-i]))
+    collab_learn.writer.add_text('best predictions','{}'.format(losses_df.sort_values('abs_loss').iloc[i]))
+a = 1
